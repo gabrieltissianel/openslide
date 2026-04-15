@@ -1,102 +1,105 @@
 # OpenSlide
 
-OpenSlide is a C library for reading whole slide image files (also known as
-virtual slides).  It provides a consistent and simple API for reading files
-from multiple vendors.
+O OpenSlide é uma biblioteca em C utilizada para leitura de imagens do tipo **WSI (Whole Slide Images)**. Ele é usado como backend no **TIA Toolbox** para suportar diversos formatos de imagens.
 
+No entanto, a versão oficial do OpenSlide possui **suporte limitado ao formato `.czi`**, que é o principal formato utilizado nos arquivos do laboratório.
 
-## Features
+Este repositório é um **fork de um fork** que adiciona melhor suporte ao formato `.czi`, incluindo casos com diferentes tipos de compressão (como JXR).
 
-OpenSlide can read brightfield whole slide images in [several formats][]:
+> ⚠️ **Importante:**  
+> As modificações relacionadas ao suporte a `.czi` **não são de minha autoria**.  
+> A única alteração neste repositório foi este `README.md`, com o objetivo de fornecer um tutorial claro de instalação e uso.
 
-* [Aperio][] (`.svs`, `.tif`)
-* [DICOM][] (`.dcm`)
-* [Hamamatsu][] (`.ndpi`, `.vms`, `.vmu`)
-* [Leica][] (`.scn`)
-* [MIRAX][] (`.mrxs`)
-* [Philips][] (`.tiff`)
-* [Sakura][] (`.svslide`)
-* [Trestle][] (`.tif`)
-* [Ventana][] (`.bif`, `.tif`)
-* [Zeiss][] (`.czi`)
-* [Generic tiled TIFF][] (`.tif`)
+---
 
-OpenSlide can also provide access to ICC profiles, textual metadata, and
-associated images such as a slide label and thumbnail.
+## 🎯 Objetivo
 
-[several formats]: https://openslide.org/formats/
-[Aperio]: https://openslide.org/formats/aperio/
-[DICOM]: https://openslide.org/formats/dicom/
-[Hamamatsu]: https://openslide.org/formats/hamamatsu/
-[Leica]: https://openslide.org/formats/leica/
-[MIRAX]: https://openslide.org/formats/mirax/
-[Philips]: https://openslide.org/formats/philips/
-[Sakura]: https://openslide.org/formats/sakura/
-[Trestle]: https://openslide.org/formats/trestle/
-[Ventana]: https://openslide.org/formats/ventana/
-[Zeiss]: https://openslide.org/formats/zeiss/
-[Generic tiled TIFF]: https://openslide.org/formats/generic-tiff/
+Facilitar a instalação de uma versão do OpenSlide compatível com arquivos `.czi`, permitindo seu uso correto dentro do **TIA Toolbox**.
 
+---
 
-## Documentation
+## Instalação deste fork 
+Tutorial levando em conta a utilização do Ubuntu 22:04 ou derivados.
 
-The [API reference][API] is available on the web, and is also included as
-`doc/html/openslide_8h.html` in the source tarball.  [Additional
-documentation][docs] is available on the [OpenSlide website][website].
-
-[API]: https://openslide.org/api/openslide_8h.html
-[docs]: https://openslide.org/#documentation
-[website]: https://openslide.org/
-
-
-## License
-
-OpenSlide is released under the terms of the [GNU Lesser General Public
-License, version 2.1](https://openslide.org/license/).
-
-OpenSlide is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
-more details.
-
-
-## Compiling
-
-To build OpenSlide, you will need:
-
-- Meson
-- cairo ≥ 1.2
-- GDK-PixBuf
-- glib ≥ 2.56
-- libdicom ≥ 1.0 (automatically built if missing)
-- libjpeg
-- libpng
-- libtiff ≥ 4.0
-- libxml2
-- OpenJPEG ≥ 2.1
-- SQLite ≥ 3.14
-- zlib
-- Zstandard
-
-Then:
-
+### 1. Instalar dependências
+```bash
+sudo apt update
+sudo apt install -y build-essential meson ninja-build pkg-config libcairo2-dev libgdk-pixbuf-2.0-dev libglib2.0-dev libjpeg-dev libpng-dev libtiff-dev libxml2-dev libopenjp2-7-dev libsqlite3-dev zlib1g-dev libzstd-dev libjxr-dev
 ```
+
+### 2. Instalar o OpenSlide
+```bash
 meson setup builddir
 meson compile -C builddir
-meson install -C builddir
+sudo meson install -C builddir
+sudo ldconfig
 ```
 
+## Configuração no TIA Toolbox
 
-## Acknowledgements
+### Desinstalar o pacote `openslide-bin`
 
-OpenSlide has been developed by Carnegie Mellon University and other
-contributors.
+O pacote OpenSlide para Python é composto por:
 
-OpenSlide has been supported by the National Institutes of Health and
-the Clinical and Translational Science Institute at the University of
-Pittsburgh.
+- `openslide-bin`: binários pré-compilados do OpenSlide  
+- `openslide-python`: bindings para uso em Python  
 
-Development of DICOM and ICC functionality was supported by NCI Imaging
-Data Commons and has been funded in whole or in part with Federal funds
-from the National Cancer Institute, National Institutes of Health, under
-Task Order No. HHSN26110071 under Contract No. HHSN261201500003l.
+Para que o `openslide-python` utilize a versão do OpenSlide compilada neste tutorial (com suporte a `.czi`), é necessário remover o `openslide-bin`, pois ele pode sobrescrever o uso da biblioteca do sistema.
+
+```bash
+pip uninstall openslide-bin
+```
+### Modificar a biblioteca para abrir `.czi`
+
+Por padrão, o TIA Toolbox restringe os formatos de arquivo suportados e lança uma exceção caso o formato não esteja na lista permitida. Para habilitar o uso de arquivos `.czi`, é necessário modificar esse comportamento manualmente.
+
+Abra o seguinte arquivo no código-fonte do TIA Toolbox:
+>tiatoolbox/wsicore/wsireader.py
+
+No método `verify_supported_wsi`, localize o trecho:
+
+```python
+if suffixes and suffixes[-1] not in [
+    ".svs",
+    ".npy",
+    ".ndpi",
+    ".mrxs",
+    ".tif",
+    ".tiff",
+    ".jp2",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".zarr",
+    ".db",
+    ".qptiff",
+    ".json",
+]:
+```
+Adicione .czi à lista.
+>⚠️ Importante:
+>Essa modificação é necessária porque o TIA Toolbox bloqueia explicitamente formatos não listados, mesmo que o OpenSlide tenha suporte para eles.
+
+## Créditos
+
+Este projeto utiliza e/ou é baseado nas seguintes bibliotecas:
+
+- **OpenSlide**   
+  https://github.com/openslide/openslide
+  >Desenvolvido pela Carnegie Mellon University e colaboradores
+
+- **TIAToolbox**  
+  https://github.com/TissueImageAnalytics/tiatoolbox
+  >Desenvolvido pela equipe do TIA Centre (University of Warwick)
+  
+- **Fork com suporte a CZI/JXR**  
+  https://github.com/iewchen/openslide
+  >Implementações adicionais para suporte ao formato `.czi` e compressão JXR foram obtidas de um fork existente do OpenSlide  
+
+- **jxrlib**  
+  https://github.com/4creators/jxrlib
+  >Biblioteca utilizada para decodificação de imagens com compressão JPEG XR (JXR)  
+
+---
+
+> ⚠️ Este repositório não implementa modificações no código-fonte das bibliotecas acima, apenas documenta o processo de instalação e integração.
